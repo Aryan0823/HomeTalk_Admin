@@ -80,6 +80,52 @@
         .logout-btn:hover {
             background-color: #1a237e;
         }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .user-name {
+            cursor: pointer;
+            color: var(--primary-color);
+        }
+        .user-name:hover {
+            text-decoration: underline;
+        }
+        .collection-item {
+            background-color: #f0f0f0;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -107,9 +153,20 @@
         </div>
     </div>
 
+    <!-- User Details Modal -->
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>User Details</h2>
+            <div id="userDetails"></div>
+            <h3>User Collections</h3>
+            <div id="userCollections"></div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-        import { getFirestore, collection, getDocs, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, doc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
         import { getAuth, signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 
         const firebaseConfig = {
@@ -137,7 +194,7 @@
                 const user = doc.data();
                 const row = userTable.insertRow();
                 row.innerHTML = `
-                    <td>${user.firstname} ${user.lastname}</td>
+                    <td class="user-name" data-id="${doc.id}">${user.firstname} ${user.lastname}</td>
                     <td>${user.email}</td>
                     <td>${user.mobilenumber}</td>
                     <td>
@@ -150,6 +207,33 @@
             document.querySelectorAll('.btn-delete').forEach(button => {
                 button.addEventListener('click', (e) => deleteUser(e.target.dataset.id));
             });
+
+            // Add event listeners to user names for redirection
+            document.querySelectorAll('.user-name').forEach(name => {
+                name.addEventListener('click', (e) => redirectToUserDetails(e.target.dataset.id));
+            });
+        }
+
+        // Function to redirect to user-details.html
+        async function redirectToUserDetails(userId) {
+            try {
+                const userDoc = await getDoc(doc(db, "users", userId));
+                if (userDoc.exists()) {
+                    const user = userDoc.data();
+                    // Encode user data and UID in the URL
+                    const userDataParam = encodeURIComponent(JSON.stringify({
+                        uid: userId,
+                        ...user
+                    }));
+                    window.location.href = `user-details.html?userData=${userDataParam}`;
+                } else {
+                    console.error("User document not found");
+                    alert("User not found");
+                }
+            } catch (error) {
+                console.error("Error in redirectToUserDetails:", error);
+                alert("An error occurred while fetching user details.");
+            }
         }
 
         // Function to delete a user
@@ -163,6 +247,68 @@
                     console.error("Error deleting user: ", error);
                     alert("Failed to delete user");
                 }
+            }
+        }
+
+        // Function to show user details and collections
+        async function showUserDetails(userId) {
+            try {
+                console.log("Fetching user details for userId:", userId);
+                const userDoc = await getDoc(doc(db, "users", userId));
+                if (userDoc.exists()) {
+                    const user = userDoc.data();
+                    console.log("User data:", user);
+                    const userDetailsHtml = `
+                        <p><strong>Name:</strong> ${user.firstname} ${user.lastname}</p>
+                        <p><strong>Email:</strong> ${user.email}</p>
+                        <p><strong>Mobile Number:</strong> ${user.mobilenumber}</p>
+                        <p><strong>Created At:</strong> ${user.createdAt ? new Date(user.createdAt.toDate()).toLocaleString() : 'N/A'}</p>
+                    `;
+                    document.getElementById("userDetails").innerHTML = userDetailsHtml;
+                    
+                    console.log("Fetching user collections from data collection");
+                    const dataDoc = await getDoc(doc(db, "data", userId));
+                    const userCollectionsDiv = document.getElementById("userCollections");
+                    userCollectionsDiv.innerHTML = '';
+        
+                    if (dataDoc.exists()) {
+                        console.log("Data document exists");
+                        const userData = dataDoc.data();
+                        console.log("User collections data:", userData);
+                        for (const [collectionName, collectionData] of Object.entries(userData)) {
+                            console.log(`Processing collection: ${collectionName}`);
+                            const collectionHtml = `
+                                <div class="collection-item">
+                                    <h4>${collectionName}</h4>
+                                    <pre>${JSON.stringify(collectionData, null, 2)}</pre>
+                                </div>
+                            `;
+                            userCollectionsDiv.innerHTML += collectionHtml;
+                        }
+                    } else {
+                        console.log("No collections found for this user");
+                        userCollectionsDiv.innerHTML = '<p>No collections found for this user.</p>';
+                    }
+        
+                    document.getElementById("userModal").style.display = "block";
+                } else {
+                    console.error("User document not found");
+                    alert("User not found");
+                }
+            } catch (error) {
+                console.error("Error in showUserDetails:", error);
+                alert("An error occurred while fetching user details. Please check the console for more information.");
+            }
+        }
+        // Close the modal when clicking on <span> (x)
+        document.querySelector(".close").onclick = function() {
+            document.getElementById("userModal").style.display = "none";
+        }
+
+        // Close the modal when clicking outside of it
+        window.onclick = function(event) {
+            if (event.target == document.getElementById("userModal")) {
+                document.getElementById("userModal").style.display = "none";
             }
         }
 

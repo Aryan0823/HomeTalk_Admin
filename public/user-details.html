@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Details - Home Talk Admin</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #3F51B5;
+        }
+        .user-info, .user-data {
+            background-color: #f4f4f4;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .collection-item {
+            background-color: #ffffff;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>User Details</h1>
+    <div id="userDetails" class="user-info">
+        <!-- User details will be populated here -->
+    </div>
+    <h2>User Data</h2>
+    <div id="userData" class="user-data">
+        <!-- User data from "Data" collection will be populated here -->
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        import { getAuth } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDqLcufSIP87WT1aEyDI-dKVdTsSBACrEc",
+            authDomain: "interactive-iot-devices-ssrip.firebaseapp.com",
+            projectId: "interactive-iot-devices-ssrip",
+            storageBucket: "interactive-iot-devices-ssrip.appspot.com",
+            messagingSenderId: "180311183138",
+            appId: "1:180311183138:web:4dc86677633cf5f1d8df7b",
+            measurementId: "G-6PTBDPMY0S"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Function to get URL parameters
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+
+        // Function to display user details and data
+        async function displayUserInfo() {
+            const userDataParam = getUrlParameter('userData');
+            if (userDataParam) {
+                const userData = JSON.parse(decodeURIComponent(userDataParam));
+                
+                // Display user details
+                const userDetailsHtml = `
+                    <p><strong>UID:</strong> ${userData.uid}</p>
+                    <p><strong>Name:</strong> ${userData.firstname} ${userData.lastname}</p>
+                    <p><strong>Email:</strong> ${userData.email}</p>
+                    <p><strong>Mobile Number:</strong> ${userData.mobilenumber}</p>
+                    <p><strong>Created At:</strong> ${userData.createdAt ? new Date(userData.createdAt.toDate()).toLocaleString() : 'N/A'}</p>
+                `;
+                document.getElementById("userDetails").innerHTML = userDetailsHtml;
+
+                // Fetch and display user data from "Data" collection
+                try {
+                    const dataDoc = await getDoc(doc(db, "Data", userData.uid));
+                    const userDataDiv = document.getElementById("userData");
+                    
+                    if (dataDoc.exists()) {
+                        const dataContent = dataDoc.data();
+                        let dataHtml = '';
+                        
+                        for (const [collectionName, collectionData] of Object.entries(dataContent)) {
+                            dataHtml += `
+                                <div class="collection-item">
+                                    <h3>${collectionName}</h3>
+                                    <pre>${JSON.stringify(collectionData, null, 2)}</pre>
+                                </div>
+                            `;
+                        }
+                        
+                        userDataDiv.innerHTML = dataHtml || "<p>No additional data found in 'Data' collection.</p>";
+                    } else {
+                        userDataDiv.innerHTML = "<p>No data found in 'Data' collection for this user.</p>";
+                    }
+                } catch (error) {
+                    console.error("Error fetching user data:", error);
+                    document.getElementById("userData").innerHTML = "<p>Error fetching user data. Please try again later.</p>";
+                }
+            } else {
+                document.getElementById("userDetails").innerHTML = "<p>No user data available.</p>";
+                document.getElementById("userData").innerHTML = "<p>No user ID available to fetch data.</p>";
+            }
+        }
+
+        // Check if the user is authenticated
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                displayUserInfo();
+            } else {
+                // If not authenticated, redirect to login page
+                window.location.href = "admin-login.html";
+            }
+        });
+    </script>
+</body>
+</html>
