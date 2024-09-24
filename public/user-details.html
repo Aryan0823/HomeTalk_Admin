@@ -22,13 +22,68 @@
             border-radius: 5px;
             margin-top: 20px;
         }
-        .collection-item {
-            background-color: #ffffff;
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-            border: 1px solid #ddd;
+        .subcollection-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
         }
+        .subcollection-card {
+            background-color: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .subcollection-card:hover {
+            background-color: #e6e6e6;
+        }
+        #subcollectionContent {
+            margin-top: 20px;
+            background-color: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            display: none;
+        }
+         .device-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .device-card {
+      background-color: var(--card-bg);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .device-card:not(#outdoor-device) {
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .device-card:not(#outdoor-device):hover {
+      transform: translateY(-5px);
+      box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .device-card i {
+      font-size: 3rem;
+      color: var(--primary-color);
+      margin-bottom: 10px;
+    }
+
+    .device-card h3 {
+      margin: 0;
+      color: var(--text-color);
+    }
+
     </style>
 </head>
 <body>
@@ -36,14 +91,37 @@
     <div id="userDetails" class="user-info">
         <!-- User details will be populated here -->
     </div>
-    <h2>User Data</h2>
+    <h2>User Data Subcollections</h2>
     <div id="userData" class="user-data">
-        <!-- User data from "Data" collection will be populated here -->
+        <div id="subcollectionGrid" class="subcollection-grid">
+            <!-- Subcollection cards will be populated here -->
+        </div>
+        <div id="subcollectionContent">
+            <!-- Selected subcollection content will be displayed here -->
+        </div>
     </div>
-
+    <div class="device-cards">
+        <div class="device-card" id="ac-card">
+          <i class="fas fa-snowflake"></i>
+          <h3>AC</h3>
+        </div>
+        <div class="device-card" id="humidifier-card">
+          <i class="fas fa-tint"></i>
+          <h3>Humidifier</h3>
+        </div>
+        <div class="device-card" id="fan-card">
+          <i class="fas fa-fan"></i>
+          <h3>Fan</h3>
+        </div>
+        <div class="device-card" id="light-card">
+          <i class="fas fa-lightbulb"></i>
+          <h3>Light</h3>
+        </div>
+    </div>
+    </div>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
         import { getAuth } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 
         const firebaseConfig = {
@@ -60,7 +138,6 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // Function to get URL parameters
         function getUrlParameter(name) {
             name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
             var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
@@ -68,7 +145,6 @@
             return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
         }
 
-        // Function to display user details and data
         async function displayUserInfo() {
             const userDataParam = getUrlParameter('userData');
             if (userDataParam) {
@@ -83,28 +159,37 @@
                     <p><strong>Created At:</strong> ${userData.createdAt ? new Date(userData.createdAt.toDate()).toLocaleString() : 'N/A'}</p>
                 `;
                 document.getElementById("userDetails").innerHTML = userDetailsHtml;
-
-                // Fetch and display user data from "Data" collection
+                
+                document.getElementById('ac-card').addEventListener('click', () => {
+                    window.location.href = `ac.html?userId=${userData.uid}`;
+                });
+                document.getElementById('humidifier-card').addEventListener('click', () => {
+                    window.location.href = `humidifier.html?userId=${userData.uid}`;
+                });
+                document.getElementById('fan-card').addEventListener('click', () => {
+                    window.location.href = `fan.html?userId=${userData.uid}`;
+                });
+                document.getElementById('light-card').addEventListener('click', () => {
+                    window.location.href = `light.html?userId=${userData.uid}`;
+                });
+                // Fetch and display user data subcollections
                 try {
-                    const dataDoc = await getDoc(doc(db, "Data", userData.uid));
-                    const userDataDiv = document.getElementById("userData");
+                    const userDoc = doc(db, "Data", userData.uid);
+                    const subcollections = await getDocs(collection(userDoc));
+                    const subcollectionGrid = document.getElementById("subcollectionGrid");
                     
-                    if (dataDoc.exists()) {
-                        const dataContent = dataDoc.data();
-                        let dataHtml = '';
-                        
-                        for (const [collectionName, collectionData] of Object.entries(dataContent)) {
-                            dataHtml += `
-                                <div class="collection-item">
-                                    <h3>${collectionName}</h3>
-                                    <pre>${JSON.stringify(collectionData, null, 2)}</pre>
+                    if (!subcollections.empty) {
+                        let subcollectionHtml = '';
+                        subcollections.forEach((subDoc) => {
+                            subcollectionHtml += `
+                                <div class="subcollection-card" onclick="showSubcollectionContent('${userData.uid}', '${subDoc.id}')">
+                                    ${subDoc.id}
                                 </div>
                             `;
-                        }
-                        
-                        userDataDiv.innerHTML = dataHtml || "<p>No additional data found in 'Data' collection.</p>";
+                        });
+                        subcollectionGrid.innerHTML = subcollectionHtml;
                     } else {
-                        userDataDiv.innerHTML = "<p>No data found in 'Data' collection for this user.</p>";
+                        subcollectionGrid.innerHTML = "<p>No subcollections found for this user.</p>";
                     }
                 } catch (error) {
                     console.error("Error fetching user data:", error);

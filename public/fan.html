@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fan Devices - Home Talk Admin</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            color: #3F51B5;
+            text-align: center;
+        }
+        #device-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .device-item {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+        .device-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .Fan-icon {
+            font-size: 24px;
+            color: #ccc;
+            transition: color 0.3s ease;
+        }
+        .Fan-icon.on {
+            color: #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fan Devices</h1>
+    <div id="device-list">
+        <!-- Fan devices will be populated here -->
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+    
+        const firebaseConfig = {
+            apiKey: "AIzaSyDqLcufSIP87WT1aEyDI-dKVdTsSBACrEc",
+            authDomain: "interactive-iot-devices-ssrip.firebaseapp.com",
+            projectId: "interactive-iot-devices-ssrip",
+            storageBucket: "interactive-iot-devices-ssrip.appspot.com",
+            messagingSenderId: "180311183138",
+            appId: "1:180311183138:web:4dc86677633cf5f1d8df7b",
+            measurementId: "G-6PTBDPMY0S"
+        };
+    
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+    
+        // Utility function to get URL parameters
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+    
+        // Function to fetch and display all AC devices for a given userId
+        async function fetchAndDisplayFanDevices(userId) {
+            const deviceList = document.getElementById('device-list');
+            deviceList.innerHTML = ''; // Clear any existing content
+    
+            try {
+                // Reference to the 'Fan' collection under the user's document
+                const FanDevicesRef = collection(db, "Data", userId, "Fan");
+    
+                // Fetch all documents (devices) from the 'Fan' collection
+                const querySnapshot = await getDocs(FanDevicesRef);
+    
+                // If no devices are found, display a message
+                if (querySnapshot.empty) {
+                    deviceList.innerHTML = '<p>No Fan devices found.</p>';
+                    return;
+                }
+    
+                // Iterate over each document in the query snapshot
+                querySnapshot.forEach((doc) => {
+                    const device = doc.data();
+                    const deviceElement = document.createElement('div');
+                    deviceElement.className = 'device-item';
+    
+                    // Populate the device information
+                    deviceElement.innerHTML = `
+                        <h3>Device ID: ${doc.id}</h3>
+                        <p>Status: <span>${device.deviceStatus || 'N/A'}</span></p>
+                        <p>Set Temperature: ${device.setTemperature || 'N/A'}°C</p>
+                        <p>Room Temperature: ${device.roomTemperature || 'N/A'}°C</p>
+                    `;
+    
+                    // Append the device information to the device list
+                    deviceList.appendChild(deviceElement);
+    
+                    // Add click event listener for each device to redirect to details page
+                    deviceElement.addEventListener('click', () => {
+                        window.location.href = `fan-details.html?userId=${userId}&deviceId=${doc.id}`;
+                    });
+                });
+            } catch (error) {
+                console.error("Error fetching Fan devices: ", error);
+                deviceList.innerHTML = '<p>Error loading Fan devices. Please try again later.</p>';
+            }
+        }
+    
+        // Check if the user is authenticated and fetch Fan devices
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                const userId = getUrlParameter('userId');
+                if (userId) {
+                    // Fetch and display the Fan devices for the authenticated user
+                    fetchAndDisplayFanDevices(userId);
+                } else {
+                    document.getElementById('device-list').innerHTML = '<p>No user ID provided. Cannot fetch Fan devices.</p>';
+                }
+            } else {
+                // If not authenticated, redirect to the login page
+                window.location.href = "admin-login.html";
+            }
+        });
+    </script>
+    
+</body>
+</html>
