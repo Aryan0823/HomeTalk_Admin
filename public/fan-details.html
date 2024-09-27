@@ -3,9 +3,330 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fan-Details</title>
+    <title>Fan Device Details</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Base Styling */
+        body {
+            font-family: 'Roboto', sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        h1, h2 {
+            color: #333;
+        }
+
+        /* Header */
+        h1 {
+            font-size: 2rem;
+            color: #4A90E2;
+        }
+
+        /* Device Info Section */
+        #deviceInfo, #dateSelector {
+            margin-bottom: 20px;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        #deviceInfo p {
+            font-size: 1.1rem;
+            color: #666;
+        }
+        #deviceInfo p strong {
+            color: #333;
+        }
+
+        /* Date Selector */
+        #dateSelector {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 400px;
+        }
+        #date {
+            padding: 8px;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4A90E2;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #357ABD;
+        }
+
+        /* Chart Section */
+        #chart {
+            max-width: 800px;
+            margin: 20px auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Table Styling */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #4A90E2;
+            color: white;
+            font-weight: 500;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        /* Responsive Styling */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            #dateSelector {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            button {
+                width: 100%;
+                margin-top: 10px;
+            }
+        }
+    </style>
 </head>
 <body>
-    Fan-Details
+    <h1>Fan Device Details</h1>
+
+    <div id="deviceInfo"></div>
+
+    <div id="dateSelector">
+        <label for="date">Select Date:</label>
+        <input type="date" id="date">
+        <button onclick="fetchData()">Fetch Data</button>
+    </div>
+
+    <div id="chart">
+        <canvas id="dataChart"></canvas>
+    </div>
+
+    <h2>Device Data</h2>
+    <table id="dataTable">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Device Status</th>
+                <th>Current</th>
+            </tr>
+        </thead>
+        <tbody id="dataBody"></tbody>
+    </table>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+        import { getFirestore, doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDqLcufSIP87WT1aEyDI-dKVdTsSBACrEc",
+            authDomain: "interactive-iot-devices-ssrip.firebaseapp.com",
+            projectId: "interactive-iot-devices-ssrip",
+            storageBucket: "interactive-iot-devices-ssrip.appspot.com",
+            messagingSenderId: "180311183138",
+            appId: "1:180311183138:web:4dc86677633cf5f1d8df7b",
+            measurementId: "G-6PTBDPMY0S"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('userId');
+        const deviceId = urlParams.get('deviceId');
+
+        let chart;
+
+        window.onload = async function() {
+            await fetchDeviceInfo();
+            document.getElementById('date').valueAsDate = new Date();
+            fetchData();
+        };
+
+        async function fetchDeviceInfo() {
+            const deviceRef = doc(db, "Data", userId, "Fan", deviceId);
+            const deviceSnap = await getDoc(deviceRef);
+
+            if (deviceSnap.exists()) {
+                const deviceData = deviceSnap.data();
+                document.getElementById('deviceInfo').innerHTML = `
+                    <p><strong>Device Name:</strong> ${deviceData.deviceName || 'N/A'}</p>
+                    <p><strong>Device Status:</strong> ${deviceData.deviceStatus || 'N/A'}</p>
+                    <p><strong>Room Temperature:</strong> ${deviceData.roomTemperature || 'N/A'}°C</p>
+                    <p><strong>Set Temperature:</strong> ${deviceData.setTemperature || 'N/A'}°C</p>
+                `;
+            } else {
+                console.log("No such device!");
+            }
+        }
+
+        window.fetchData = async function() {
+            const selectedDate = document.getElementById('date').value;
+
+            const [year, month, day] = selectedDate.split('-');
+            const formattedDate = `${day}-${month}-${year}`;
+
+            console.log(`Fetching data for userId: ${userId}, deviceId: ${deviceId}, date: ${formattedDate}`);
+
+            const dateRef = collection(db, "Data", userId, "Fan", deviceId, formattedDate);
+            console.log(`Firestore path: Data/${userId}/Fan/${deviceId}/${formattedDate}`);
+
+            try {
+                const querySnapshot = await getDocs(dateRef);
+                console.log(`Query snapshot size: ${querySnapshot.size}`);
+
+                if (querySnapshot.empty) {
+                    console.log("No data available for the selected date");
+                    document.getElementById('dataBody').innerHTML = '<tr><td colspan="3">No data available for the selected date</td></tr>';
+                    if (chart) {
+                        chart.destroy();
+                        chart = null;
+                    }
+                    return;
+                }
+
+                const data = [];
+                querySnapshot.forEach((doc) => {
+                    console.log(`Document ID: ${doc.id}, Data:`, doc.data());
+                    data.push({ time: doc.id, ...doc.data() });
+                });
+
+                console.log(`Processed data:`, data);
+
+                updateTable(data);
+                updateChart(data);
+            } catch (error) {
+                console.error("Error fetching data: ", error);
+                document.getElementById('dataBody').innerHTML = `<tr><td colspan="3">Error fetching data: ${error.message}</td></tr>`;
+                if (chart) {
+                    chart.destroy();
+                    chart = null;
+                }
+            }
+        }
+
+        function updateTable(data) {
+            const tableBody = document.getElementById('dataBody');
+            tableBody.innerHTML = '';
+            data.forEach((item) => {
+                const row = tableBody.insertRow();
+                row.insertCell(0).textContent = item.time;
+                row.insertCell(1).textContent = item.deviceStatus || 'N/A';
+                row.insertCell(2).textContent = item.current || 'N/A';
+            });
+        }
+
+
+        function updateChart(data) {
+    const ctx = document.getElementById('dataChart').getContext('2d');
+    
+    // Sort data by time
+    data.sort((a, b) => new Date(a.time) - new Date(b.time));
+
+    const labels = data.map(item => item.time);
+    const currentData = data.map(item => parseFloat(item.current) || 0);
+    const statusData = data.map(item => item.deviceStatus === "ON" ? 1 : 0);
+
+    if (chart) {
+        chart.destroy();
+    }
+
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Current',
+                    data: currentData,
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1,
+                    yAxisID: 'y-axis-1'
+                },
+                {
+                    label: 'Device Status',
+                    data: statusData,
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgb(255, 99, 132)',
+                    stepped: true,
+                    yAxisID: 'y-axis-2'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    }
+                },
+                'y-axis-1': {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Current'
+                    }
+                },
+                'y-axis-2': {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    min: 0,
+                    max: 1,
+                    ticks: {
+                        callback: function(value) {
+                            return value == 1 ? 'ON' : 'OFF';
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Device Status'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                }
+            }
+        }
+    });
+}
+
+    </script>
 </body>
 </html>
