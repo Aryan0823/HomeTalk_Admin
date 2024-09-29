@@ -246,86 +246,86 @@
 
 
         function updateChart(data) {
-    const ctx = document.getElementById('dataChart').getContext('2d');
-    
-    // Sort data by time
-    data.sort((a, b) => new Date(a.time) - new Date(b.time));
+            const ctx = document.getElementById('dataChart').getContext('2d');
+            
+            // Sort data by time
+            data.sort((a, b) => new Date(a.time) - new Date(b.time));
 
-    const labels = data.map(item => item.time);
-    const currentData = data.map(item => parseFloat(item.current) || 0);
-    const statusData = data.map(item => item.deviceStatus === "ON" ? 1 : 0);
+            const labels = data.map(item => item.time);
+            const currentData = data.map(item => parseFloat(item.current) || 0);
+            const statusData = data.map(item => item.deviceStatus === "ON" ? 1 : 0);
 
-    if (chart) {
-        chart.destroy();
-    }
-
-    chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Current',
-                    data: currentData,
-                    borderColor: 'rgb(75, 192, 192)',
-                    tension: 0.1,
-                    yAxisID: 'y-axis-1'
-                },
-                {
-                    label: 'Device Status',
-                    data: statusData,
-                    borderColor: 'rgb(255, 99, 132)',
-                    backgroundColor: 'rgb(255, 99, 132)',
-                    stepped: true,
-                    yAxisID: 'y-axis-2'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            interaction: {
-                mode: 'index',
-                intersect: false,
-            },
-            scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Time'
-                    }
-                },
-                'y-axis-1': {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    title: {
-                        display: true,
-                        text: 'Current'
-                    }
-                },
-                'y-axis-2': {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    min: 0,
-                    max: 1,
-                    ticks: {
-                        callback: function(value) {
-                            return value == 1 ? 'ON' : 'OFF';
-                        }
-                    },
-                    title: {
-                        display: true,
-                        text: 'Device Status'
-                    },
-                    grid: {
-                        drawOnChartArea: false,
-                    },
-                }
+            if (chart) {
+                chart.destroy();
             }
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Current',
+                            data: currentData,
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1,
+                            yAxisID: 'y-axis-1'
+                        },
+                        {
+                            label: 'Device Status',
+                            data: statusData,
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'rgb(255, 99, 132)',
+                            stepped: true,
+                            yAxisID: 'y-axis-2'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        },
+                        'y-axis-1': {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Current'
+                            }
+                        },
+                        'y-axis-2': {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            min: 0,
+                            max: 1,
+                            ticks: {
+                                callback: function(value) {
+                                    return value == 1 ? 'ON' : 'OFF';
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Device Status'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    }
+                }
+            });
         }
-    });
-}
 
     </script>
 </body>
