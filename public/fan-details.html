@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,7 +17,9 @@
             background-color: #f5f7fa;
             color: #333;
         }
-        h1, h2 {
+
+        h1,
+        h2 {
             color: #333;
         }
 
@@ -27,17 +30,20 @@
         }
 
         /* Device Info Section */
-        #deviceInfo, #dateSelector {
+        #deviceInfo,
+        #dateSelector {
             margin-bottom: 20px;
             padding: 20px;
             background-color: #ffffff;
             border-radius: 10px;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
+
         #deviceInfo p {
             font-size: 1.1rem;
             color: #666;
         }
+
         #deviceInfo p strong {
             color: #333;
         }
@@ -49,12 +55,14 @@
             justify-content: space-between;
             max-width: 400px;
         }
+
         #date {
             padding: 8px;
             font-size: 1rem;
             border: 1px solid #ccc;
             border-radius: 5px;
         }
+
         button {
             padding: 10px 20px;
             background-color: #4A90E2;
@@ -65,6 +73,7 @@
             font-size: 1rem;
             transition: background-color 0.3s ease;
         }
+
         button:hover {
             background-color: #357ABD;
         }
@@ -85,16 +94,20 @@
             border-collapse: collapse;
             margin-top: 20px;
         }
-        th, td {
+
+        th,
+        td {
             border: 1px solid #ddd;
             padding: 12px;
             text-align: left;
         }
+
         th {
             background-color: #4A90E2;
             color: white;
             font-weight: 500;
         }
+
         tr:nth-child(even) {
             background-color: #f9f9f9;
         }
@@ -104,27 +117,71 @@
             body {
                 padding: 10px;
             }
+
             #dateSelector {
                 flex-direction: column;
                 align-items: flex-start;
             }
+
             button {
                 width: 100%;
                 margin-top: 10px;
             }
         }
+
+        /* Date Selector Styling */
+        #dateSelector {
+            margin-bottom: 20px;
+            padding: 20px;
+            background-color: #ececec;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        #dateSelector select, #dateSelector input[type="date"], 
+        #dateSelector input[type="month"], #dateSelector input[type="number"] {
+            padding: 8px;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+
+        /* Initially hide the month, year, and range inputs */
+        #monthInput, #yearInput, #rangeInputs {
+            display: none;
+        }
+        
     </style>
 </head>
+
 <body>
     <h1>Fan Device Details</h1>
 
     <div id="deviceInfo"></div>
 
+    <!-- Updated date selector -->
     <div id="dateSelector">
-        <label for="date">Select Date:</label>
-        <input type="date" id="date">
+        <label for="viewType">View By:</label>
+        <select id="viewType" onchange="toggleDateInputs()">
+            <option value="day">Day</option>
+            <option value="month">Month</option>
+            <option value="year">Year</option>
+            <option value="range">Range</option>
+        </select>
+
+        <input type="date" id="dateInput">
+        <input type="month" id="monthInput">
+        <input type="number" id="yearInput" placeholder="Select Year" min="2000" max="2100">
+        <div id="rangeInputs">
+            <label for="startDate">From:</label>
+            <input type="date" id="startDate">
+            <label for="endDate">To:</label>
+            <input type="date" id="endDate">
+        </div>
         <button onclick="fetchData()">Fetch Data</button>
     </div>
+
 
     <div id="chart">
         <canvas id="dataChart"></canvas>
@@ -140,7 +197,7 @@
             <tr>
                 <th>Time</th>
                 <th>Device Status</th>
-                <th>FanSpeed</th>
+                <th>Fan Speed</th>
             </tr>
         </thead>
         <tbody id="dataBody"></tbody>
@@ -148,7 +205,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-        import { getFirestore, doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, collection, getDocs} from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDqLcufSIP87WT1aEyDI-dKVdTsSBACrEc",
@@ -169,11 +226,42 @@
 
         let chart;
 
-        window.onload = async function() {
+        window.onload = async function () {
             await fetchDeviceInfo();
-            document.getElementById('date').valueAsDate = new Date();
-            fetchData();
+            document.getElementById('dateInput').valueAsDate = new Date();
+            toggleDateInputs();
         };
+
+        window.toggleDateInputs = function() {
+            const viewType = document.getElementById('viewType').value;
+            const dateInput = document.getElementById('dateInput');
+            const monthInput = document.getElementById('monthInput');
+            const yearInput = document.getElementById('yearInput');
+            const rangeInputs = document.getElementById('rangeInputs');
+
+            // Hide all inputs initially
+            dateInput.style.display = 'none';
+            monthInput.style.display = 'none';
+            yearInput.style.display = 'none';
+            rangeInputs.style.display = 'none';
+
+            // Show specific input based on selected view type
+            switch(viewType) {
+                case 'day':
+                    dateInput.style.display = 'inline-block';
+                    break;
+                case 'month':
+                    monthInput.style.display = 'inline-block';
+                    break;
+                case 'year':
+                    yearInput.style.display = 'inline-block';
+                    break;
+                case 'range':
+                    rangeInputs.style.display = 'inline-block';
+                    break;
+            }
+        };
+
 
         async function fetchDeviceInfo() {
             const deviceRef = doc(db, "Data", userId, "Fan", deviceId);
@@ -192,63 +280,88 @@
             }
         }
 
+        // Update fetchData function
         window.fetchData = async function() {
-    const selectedDate = document.getElementById('date').value;
-    const [year, month, day] = selectedDate.split('-');
-    const formattedDate = `${day}-${month}-${year}`;
+            const viewType = document.getElementById('viewType').value;
+            let dateStr;
 
-    console.log(`Fetching data for userId: ${userId}, deviceId: ${deviceId}, date: ${formattedDate}`);
-
-    const dateRef = collection(db, "Data", userId, "Fan", deviceId, formattedDate);
-    const powerConsumptionRef = doc(db, "Data", userId, "Fan", deviceId, formattedDate, "powerconsumption");
-
-    try {
-        const querySnapshot = await getDocs(dateRef);
-        const powerConsumptionDoc = await getDoc(powerConsumptionRef);
-
-        if (querySnapshot.empty) {
-            console.log("No data available for the selected date");
-            document.getElementById('dataBody').innerHTML = '<tr><td colspan="3">No data available for the selected date</td></tr>';
-            if (chart) {
-                chart.destroy();
-                chart = null;
+            switch(viewType) {
+                case 'day':
+                    const selectedDate = document.getElementById('dateInput').value;
+                    const [year, month, day] = selectedDate.split('-');
+                    dateStr = `${day}-${month}-${year}`;
+                    break;
+                case 'month':
+                    const [myear, mmonth] = document.getElementById('monthInput').value.split('-');
+                    dateStr = `${mmonth}-${myear}`;
+                    break;
+                case 'year':
+                    dateStr = document.getElementById('yearInput').value;
+                    break;
+                case 'range':
+                    // For range, we'll use the start date initially
+                    const startDate = document.getElementById('startDate').value;
+                    const [syear, smonth, sday] = startDate.split('-');
+                    dateStr = `${sday}-${smonth}-${syear}`;
+                    break;
             }
-        } else {
-            const data = [];
-            querySnapshot.forEach((doc) => {
-                data.push({ time: doc.id, ...doc.data() });
-            });
 
-            updateTable(data);
-            updateChart(data);
-        }
+            console.log(`Fetching data for date: ${dateStr}`);
 
-        // Display power consumption data if it exists
-        if (powerConsumptionDoc.exists()) {
-            const powerData = powerConsumptionDoc.data();
-            document.getElementById('energyConsumption').textContent = powerData.energyConsumption || 'N/A';
-            document.getElementById('totalOnTime').textContent = powerData.totalOnTime || 'N/A';
-            document.getElementById('powerConsumptionInfo').style.display = 'block';
-        } else {
-            console.log("No power consumption data available for the selected date");
-            document.getElementById('powerConsumptionInfo').style.display = 'none';
-        }
+            try {
+                // Fetch regular data
+                const dateRef = collection(db, "Data", userId, "Fan", deviceId, dateStr);
+                const querySnapshot = await getDocs(dateRef);
 
-    } catch (error) {
-        console.error("Error fetching data: ", error);
-        document.getElementById('dataBody').innerHTML = `<tr><td colspan="3">Error fetching data: ${error.message}</td></tr>`;
-        if (chart) {
-            chart.destroy();
-            chart = null;
-        }
-    }
-};
+                // Fetch power consumption data
+                const powerConsumptionRef = doc(db, "Data", userId, "Fan", deviceId, dateStr, "powerconsumption");
+                const powerConsumptionDoc = await getDoc(powerConsumptionRef);
+
+                if (querySnapshot.empty) {
+                    console.log("No data available for the selected date");
+                    document.getElementById('dataBody').innerHTML = '<tr><td colspan="3">No data available for the selected date</td></tr>';
+                    if (chart) {
+                        chart.destroy();
+                        chart = null;
+                    }
+                    document.getElementById('powerConsumptionInfo').style.display = 'none';
+                } else {
+                    const data = [];
+                    querySnapshot.forEach((doc) => {
+                        data.push({ 
+                            time: doc.id,
+                            ...doc.data()
+                        });
+                    });
+
+                    // Update power consumption info if available
+                    if (powerConsumptionDoc.exists()) {
+                        const powerData = powerConsumptionDoc.data();
+                        document.getElementById('energyConsumption').textContent = powerData.energyConsumption || 'N/A';
+                        document.getElementById('totalOnTime').textContent = powerData.totalOnTime || 'N/A';
+                        document.getElementById('powerConsumptionInfo').style.display = 'block';
+                    } else {
+                        document.getElementById('powerConsumptionInfo').style.display = 'none';
+                    }
+
+                    updateTable(data);
+                    updateChart(data);
+                }
+            } catch (error) {
+                console.error("Error fetching data: ", error);
+                document.getElementById('dataBody').innerHTML = `<tr><td colspan="3">Error fetching data: ${error.message}</td></tr>`;
+                if (chart) {
+                    chart.destroy();
+                    chart = null;
+                }
+            }
+        };
 
 
         function updateTable(data) {
             const tableBody = document.getElementById('dataBody');
             tableBody.innerHTML = '';
-            data.forEach((item) => {
+            data.sort((a, b) => a.time.localeCompare(b.time)).forEach((item) => {
                 const row = tableBody.insertRow();
                 row.insertCell(0).textContent = item.time;
                 row.insertCell(1).textContent = item.deviceStatus || 'N/A';
@@ -256,12 +369,12 @@
             });
         }
 
-
+        // Update chart function with new time formatting
         function updateChart(data) {
             const ctx = document.getElementById('dataChart').getContext('2d');
             
             // Sort data by time
-            data.sort((a, b) => new Date(a.time) - new Date(b.time));
+            data.sort((a, b) => a.time.localeCompare(b.time));
 
             const labels = data.map(item => item.time);
             const fanSpeedData = data.map(item => parseFloat(item.fanSpeed) || 0);
@@ -277,7 +390,7 @@
                     labels: labels,
                     datasets: [
                         {
-                            label: 'fanSpeed',
+                            label: 'Fan Speed',
                             data: fanSpeedData,
                             borderColor: 'rgb(75, 192, 192)',
                             tension: 0.1,
@@ -312,7 +425,7 @@
                             position: 'left',
                             title: {
                                 display: true,
-                                text: 'fanSpeed'
+                                text: 'Fan Speed'
                             }
                         },
                         'y-axis-2': {
@@ -338,7 +451,7 @@
                 }
             });
         }
-
     </script>
 </body>
+
 </html>
