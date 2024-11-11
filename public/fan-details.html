@@ -362,6 +362,170 @@
             table.innerHTML = headerHTML;
         }
 
+        // Add this new function to fetch yearly data
+        async function fetchYearlyData() {
+            const year = document.getElementById('yearInput').value;
+
+            try {
+                // Fetch all months in the selected year
+                const yearRef = collection(db, "Data", userId, "Fan", deviceId, "Logs", year);
+                const monthsSnapshot = await getDocs(yearRef);
+
+                if (monthsSnapshot.empty) {
+                    document.getElementById('dataBody').innerHTML = '<tr><td colspan="3">No data available for the selected year</td></tr>';
+                    return;
+                }
+
+                // Create yearly summary div
+                const yearlySummaryDiv = document.createElement('div');
+                yearlySummaryDiv.className = 'monthly-summary';
+
+                let totalYearlyConsumption = 0;
+                let totalYearlyOnTime = 0;
+                const monthlyData = [];
+
+                // Process each month's data
+                for (const monthDoc of monthsSnapshot.docs) {
+                    const monthName = monthDoc.id;
+                    if (monthName === 'totalOfThisYear') continue;
+
+                    // Fetch totalOfThisMonth document for each month
+                    const totalMonthRef = doc(db, "Data", userId, "Fan", deviceId, "Logs", year, monthName, "totalOfThisMonth");
+                    const totalMonthDoc = await getDoc(totalMonthRef);
+
+                    if (totalMonthDoc.exists()) {
+                        const monthData = totalMonthDoc.data();
+                        const energyConsumption = parseFloat(monthData.energyConsumption) || 0;
+                        const totalOnTime = parseFloat(monthData.totalOnTime) || 0;
+
+                        totalYearlyConsumption += energyConsumption;
+                        totalYearlyOnTime += totalOnTime;
+
+                        monthlyData.push({
+                            month: monthName,
+                            energyConsumption: energyConsumption.toFixed(2),
+                            totalOnTime: totalOnTime.toFixed(2)
+                        });
+                    }
+                }
+
+                // Update yearly summary
+                yearlySummaryDiv.innerHTML = `
+                <h3>Yearly Summary - ${year}</h3>
+                <p><strong>Total Energy Consumption:</strong> ${totalYearlyConsumption.toFixed(2)} Wh</p>
+                <p><strong>Total On Time:</strong> ${totalYearlyOnTime.toFixed(2)} Sec</p>
+            `;
+
+                // Update table headers
+                const table = document.getElementById('dataTable');
+                table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Energy Consumption (Wh)</th>
+                        <th>Total On Time (Sec)</th>
+                    </tr>
+                </thead>
+                <tbody id="dataBody"></tbody>
+            `;
+
+                // Sort months and update table
+                const sortedMonthlyData = monthlyData.sort((a, b) => a.month.localeCompare(b.month));
+                const tableBody = document.getElementById('dataBody');
+                tableBody.innerHTML = sortedMonthlyData.map(data => `
+                <tr>
+                    <td>${data.month}</td>
+                    <td>${data.energyConsumption}</td>
+                    <td>${data.totalOnTime}</td>
+                </tr>
+            `).join('');
+
+                // Insert yearly summary before table
+                const existingSummary = document.querySelector('.monthly-summary');
+                if (existingSummary) {
+                    existingSummary.remove();
+                }
+                table.parentNode.insertBefore(yearlySummaryDiv, table);
+
+                // Clear any existing chart
+                if (chart) {
+                    chart.destroy();
+                    chart = null;
+                }
+
+            } catch (error) {
+                console.error("Error fetching yearly data: ", error);
+                document.getElementById('dataBody').innerHTML = `
+                <tr><td colspan="3">Error fetching yearly data: ${error.message}</td></tr>
+            `;
+            }
+        }
+
+
+        // Modify the fetchData function to include year option
+        window.fetchData = async function () {
+            const viewType = document.getElementById('viewType').value;
+
+            switch (viewType) {
+                case 'month':
+                    await fetchMonthlyData();
+                    break;
+                case 'year':
+                    await fetchYearlyData();
+                    break;
+                default:
+                    const dateStr = getDateString(viewType);
+                    console.log(`Fetching data for date: ${dateStr}`);
+
+                    try {
+                        // Fetch regular data
+                        const dateRef = collection(db, "Data", userId, "Fan", deviceId, dateStr);
+                        const querySnapshot = await getDocs(dateRef);
+
+                        // Fetch power consumption data
+                        const powerConsumptionRef = doc(db, "Data", userId, "Fan", deviceId, dateStr, "powerconsumption");
+                        const powerConsumptionDoc = await getDoc(powerConsumptionRef);
+
+                        if (querySnapshot.empty) {
+                            console.log("No data available for the selected date");
+                            document.getElementById('dataBody').innerHTML = '<tr><td colspan="3">No data available for the selected date</td></tr>';
+                            if (chart) {
+                                chart.destroy();
+                                chart = null;
+                            }
+                            updatePowerConsumption(viewType, null);
+                        } else {
+                            const data = [];
+                            querySnapshot.forEach((doc) => {
+                                data.push({
+                                    time: doc.id,
+                                    ...doc.data()
+                                });
+                            });
+
+                            // Update power consumption info
+                            if (powerConsumptionDoc.exists()) {
+                                updatePowerConsumption(viewType, powerConsumptionDoc.data());
+                            } else {
+                                updatePowerConsumption(viewType, null);
+                            }
+
+                            updateTable(data);
+                            updateChart(data);
+                        }
+                    } catch (error) {
+                        console.error("Error fetching data: ", error);
+                        document.getElementById('dataBody').innerHTML = `<tr><td colspan="3">Error fetching data: ${error.message}</td></tr>`;
+                        if (chart) {
+                            chart.destroy();
+                            chart = null;
+                        }
+                        updatePowerConsumption(viewType, null);
+                    }
+            }
+        };
+
+
         // Modified window.fetchData function
         window.fetchData = async function () {
             const viewType = document.getElementById('viewType').value;
@@ -442,7 +606,7 @@
         }
 
 
-        // Modified fetchMonthlyData function
+        // Modified fetchMonthlyData function to include chart visualization
         async function fetchMonthlyData() {
             const [year, month] = document.getElementById('monthInput').value.split('-');
 
@@ -466,36 +630,34 @@
                 // Update table headers for monthly view
                 updateTableHeaders('month');
 
-                // Prepare table data
+                // Prepare data for table and chart
                 const tableData = [];
                 monthDocs.forEach(doc => {
                     if (doc.id !== 'totalOfThisMonth') {
                         const data = doc.data();
                         tableData.push({
                             date: doc.id,
-                            energyConsumption: data.energyConsumption || 'N/A',
-                            totalOnTime: data.totalOnTime || 'N/A'
+                            energyConsumption: parseFloat(data.energyConsumption) || 0,
+                            totalOnTime: parseFloat(data.totalOnTime) || 0
                         });
                     }
                 });
 
+                // Sort data by date
+                tableData.sort((a, b) => a.date.localeCompare(b.date));
+
                 // Update table content
                 const tableBody = document.getElementById('dataBody');
-                tableBody.innerHTML = tableData
-                    .sort((a, b) => a.date.localeCompare(b.date))
-                    .map(row => `
-                <tr>
-                    <td>${row.date}</td>
-                    <td>${row.energyConsumption}</td>
-                    <td>${row.totalOnTime}</td>
-                </tr>
-            `).join('');
+                tableBody.innerHTML = tableData.map(row => `
+            <tr>
+                <td>${row.date}</td>
+                <td>${row.energyConsumption.toFixed(2)}</td>
+                <td>${row.totalOnTime.toFixed(2)}</td>
+            </tr>
+        `).join('');
 
-                // Clear the chart since we're showing monthly data
-                if (chart) {
-                    chart.destroy();
-                    chart = null;
-                }
+                // Update chart with monthly data
+                updateMonthlyChart(tableData);
 
             } catch (error) {
                 console.error("Error fetching monthly data: ", error);
@@ -503,9 +665,99 @@
             <tr><td colspan="3">Error fetching monthly data: ${error.message}</td></tr>
         `;
                 updatePowerConsumption('month', null);
+                if (chart) {
+                    chart.destroy();
+                    chart = null;
+                }
             }
         }
 
+        // New function to update chart with monthly data
+        function updateMonthlyChart(data) {
+            const ctx = document.getElementById('dataChart').getContext('2d');
+
+            const labels = data.map(item => item.date);
+            const energyData = data.map(item => item.energyConsumption);
+            const onTimeData = data.map(item => item.totalOnTime);
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Energy Consumption (Wh)',
+                            data: energyData,
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            yAxisID: 'y-axis-1',
+                            fill: true
+                        },
+                        {
+                            label: 'Total On Time (Sec)',
+                            data: onTimeData,
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            yAxisID: 'y-axis-2',
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        },
+                        'y-axis-1': {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Energy Consumption (Wh)'
+                            },
+                            grid: {
+                                drawOnChartArea: true
+                            }
+                        },
+                        'y-axis-2': {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Total On Time (Sec)'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Monthly Energy Consumption and Usage Time'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    }
+                }
+            });
+        }
 
         // Modify the updateTable function to use the new structure
         function updateTable(data) {
