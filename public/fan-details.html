@@ -136,7 +136,7 @@
             <tr>
                 <th>Time</th>
                 <th>Device Status</th>
-                <th>Current</th>
+                <th>FanSpeed</th>
             </tr>
         </thead>
         <tbody id="dataBody"></tbody>
@@ -181,7 +181,7 @@
                     <p><strong>Device Name:</strong> ${deviceData.deviceName || 'N/A'}</p>
                     <p><strong>Device Status:</strong> ${deviceData.deviceStatus || 'N/A'}</p>
                     <p><strong>Room Temperature:</strong> ${deviceData.roomTemperature || 'N/A'}°C</p>
-                    <p><strong>Set Temperature:</strong> ${deviceData.setTemperature || 'N/A'}°C</p>
+                    <p><strong>Set Fan Speed:</strong> ${deviceData.setFanSpeed || '0'}</p>
                 `;
             } else {
                 console.log("No such device!");
@@ -240,7 +240,7 @@
                 const row = tableBody.insertRow();
                 row.insertCell(0).textContent = item.time;
                 row.insertCell(1).textContent = item.deviceStatus || 'N/A';
-                row.insertCell(2).textContent = item.current || 'N/A';
+                row.insertCell(2).textContent = item.fanSpeed || '0';
             });
         }
 
@@ -252,7 +252,7 @@
             data.sort((a, b) => new Date(a.time) - new Date(b.time));
 
             const labels = data.map(item => item.time);
-            const currentData = data.map(item => parseFloat(item.current) || 0);
+            const fanSpeedData = data.map(item => parseFloat(item.fanSpeed) || 0);
             const statusData = data.map(item => item.deviceStatus === "ON" ? 1 : 0);
 
             if (chart) {
@@ -265,8 +265,8 @@
                     labels: labels,
                     datasets: [
                         {
-                            label: 'Current',
-                            data: currentData,
+                            label: 'fanSpeed',
+                            data: fanSpeedData,
                             borderColor: 'rgb(75, 192, 192)',
                             tension: 0.1,
                             yAxisID: 'y-axis-1'
@@ -300,7 +300,7 @@
                             position: 'left',
                             title: {
                                 display: true,
-                                text: 'Current'
+                                text: 'fanSpeed'
                             }
                         },
                         'y-axis-2': {

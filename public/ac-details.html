@@ -30,7 +30,7 @@
         #deviceInfo, #dateSelector {
             margin-bottom: 20px;
             padding: 20px;
-            background-color: #ffffff;
+            background-color: #ececec;
             border-radius: 10px;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
@@ -44,17 +44,22 @@
 
         /* Date Selector */
         #dateSelector {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            max-width: 400px;
+            margin-bottom: 20px;
         }
-        #date {
+        #dateSelector select, #dateSelector input[type="date"], #dateSelector input[type="month"], #dateSelector input[type="number"] {
             padding: 8px;
             font-size: 1rem;
             border: 1px solid #ccc;
             border-radius: 5px;
+            margin-right: 10px;
         }
+
+        /* Initially hide the month, year, and range inputs */
+        #monthInput, #yearInput, #rangeInputs {
+            display: none;
+        }
+
+        /* Styling the button */
         button {
             padding: 10px 20px;
             background-color: #4A90E2;
@@ -104,14 +109,6 @@
             body {
                 padding: 10px;
             }
-            #dateSelector {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            button {
-                width: 100%;
-                margin-top: 10px;
-            }
         }
     </style>
 </head>
@@ -120,19 +117,35 @@
 
     <div id="deviceInfo"></div>
 
+    <!-- Date Selector with options for different view types -->
     <div id="dateSelector">
-        <label for="date">Select Date:</label>
-        <input type="date" id="date">
+        <label for="viewType">View By:</label>
+        <select id="viewType" onchange="toggleDateInputs()">
+            <option value="day">Day</option>
+            <option value="month">Month</option>
+            <option value="year">Year</option>
+            <option value="range">Range</option>
+        </select>
+
+        <!-- Inputs for day, month, year, and range selection -->
+        <input type="date" id="dateInput">
+        <input type="month" id="monthInput">
+        <input type="number" id="yearInput" placeholder="Select Year" min="2000" max="2100">
+        <div id="rangeInputs">
+            <label for="startDate">From:</label>
+            <input type="date" id="startDate">
+            <label for="endDate">To:</label>
+            <input type="date" id="endDate">
+        </div>
         <button onclick="fetchData()">Fetch Data</button>
     </div>
 
     <div id="chart">
         <canvas id="dataChart"></canvas>
     </div>
-    
+
     <h2>Total Power Consumption</h2>
     <p id="totalCurrent">Total Current: 0 A</p>
-    
 
     <h2>Device Data</h2>
     <table id="dataTable">
@@ -146,10 +159,9 @@
         <tbody id="dataBody"></tbody>
     </table>
 
-
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-        import { getFirestore, doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, collection, getDocs, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDqLcufSIP87WT1aEyDI-dKVdTsSBACrEc",
@@ -172,8 +184,8 @@
 
         window.onload = async function() {
             await fetchDeviceInfo();
-            document.getElementById('date').valueAsDate = new Date();
-            fetchData();
+            document.getElementById('dateInput').valueAsDate = new Date();
+            toggleDateInputs();
         };
 
         async function fetchDeviceInfo() {
@@ -193,23 +205,74 @@
             }
         }
 
+        window.toggleDateInputs = function() {
+            const viewType = document.getElementById('viewType').value;
+            const dateInput = document.getElementById('dateInput');
+            const monthInput = document.getElementById('monthInput');
+            const yearInput = document.getElementById('yearInput');
+            const rangeInputs = document.getElementById('rangeInputs');
+
+            // Hide all inputs initially
+            dateInput.style.display = 'none';
+            monthInput.style.display = 'none';
+            yearInput.style.display = 'none';
+            rangeInputs.style.display = 'none';
+
+            // Show specific input based on selected view type
+            if (viewType === 'day') {
+                dateInput.style.display = 'inline-block';
+            } else if (viewType === 'month') {
+                monthInput.style.display = 'inline-block';
+            } else if (viewType === 'year') {
+                yearInput.style.display = 'inline-block';
+            } else if (viewType === 'range') {
+                rangeInputs.style.display = 'inline-block';
+            }
+        }
+
         window.fetchData = async function() {
-            const selectedDate = document.getElementById('date').value;
-            const [year, month, day] = selectedDate.split('-');
-            const formattedDate = `${day}-${month}-${year}`;
+            const viewType = document.getElementById('viewType').value;
+            let startDate, endDate;
 
-            console.log(`Fetching data for userId: ${userId}, deviceId: ${deviceId}, date: ${formattedDate}`);
+            switch(viewType) {
+                case 'day':
+                    const selectedDate = new Date(document.getElementById('dateInput').value);
+                    startDate = selectedDate;
+                    endDate = new Date(selectedDate.getTime() + 24 * 60 * 60 * 1000);
+                    break;
+                case 'month':
+                    const [year, month] = document.getElementById('monthInput').value.split('-');
+                    startDate = new Date(year, month - 1, 1);
+                    endDate = new Date(year, month, 0);
+                    break;
+                case 'year':
+                    const selectedYear = document.getElementById('yearInput').value;
+                    startDate = new Date(selectedYear, 0, 1);
+                    endDate = new Date(selectedYear, 11, 31);
+                    break;
+                case 'range':
+                    startDate = new Date(document.getElementById('startDate').value);
+                    endDate = new Date(document.getElementById('endDate').value);
+                    endDate.setDate(endDate.getDate() + 1); // Include the end date
+                    break;
+            }
 
-            const dateRef = collection(db, "Data", userId, "AC", deviceId, formattedDate);
-            console.log(`Firestore path: Data/${userId}/AC/${deviceId}/${formattedDate}`);
+            console.log(`Fetching data for userId: ${userId}, deviceId: ${deviceId}, from: ${startDate}, to: ${endDate}`);
+
+            const dataRef = collection(db, "Data", userId, "AC", deviceId, "readings");
+            const q = query(dataRef, 
+                where("timestamp", ">=", startDate), 
+                where("timestamp", "<", endDate),
+                orderBy("timestamp")
+            );
 
             try {
-                const querySnapshot = await getDocs(dateRef);
+                const querySnapshot = await getDocs(q);
                 console.log(`Query snapshot size: ${querySnapshot.size}`);
 
                 if (querySnapshot.empty) {
-                    console.log("No data available for the selected date");
-                    document.getElementById('dataBody').innerHTML = '<tr><td colspan="3">No data available for the selected date</td></tr>';
+                    console.log("No data available for the selected period");
+                    document.getElementById('dataBody').innerHTML = '<tr><td colspan="3">No data available for the selected period</td></tr>';
                     if (chart) {
                         chart.destroy();
                         chart = null;
@@ -222,11 +285,14 @@
                 let totalCurrent = 0;
 
                 querySnapshot.forEach((doc) => {
-                    console.log(`Document ID: ${doc.id}, Data:`, doc.data());
                     const docData = doc.data();
                     const current = parseFloat(docData.current) || 0;
-                    totalCurrent += current;  // Add current value to the total
-                    data.push({ time: doc.id, ...docData });
+                    totalCurrent += current;
+                    data.push({ 
+                        time: docData.timestamp.toDate(),
+                        deviceStatus: docData.deviceStatus,
+                        current: current
+                    });
                 });
 
                 console.log(`Processed data:`, data);
@@ -235,7 +301,6 @@
                 updateTable(data);
                 updateChart(data);
 
-                // Display the total current in the HTML
                 document.getElementById('totalCurrent').textContent = `Total Current: ${totalCurrent.toFixed(2)} A`;
 
             } catch (error) {
@@ -254,80 +319,65 @@
             tableBody.innerHTML = '';
             data.forEach((item) => {
                 const row = tableBody.insertRow();
-                row.insertCell(0).textContent = item.time;
+                row.insertCell(0).textContent = item.time.toLocaleString();
                 row.insertCell(1).textContent = item.deviceStatus || 'N/A';
-                row.insertCell(2).textContent = item.current || 'N/A';
+                row.insertCell(2).textContent = item.current.toFixed(2) || 'N/A';
             });
         }
 
-
         function updateChart(data) {
-            const ctx = document.getElementById('dataChart').getContext('2d');
-            
-            // Sort data by time
-            data.sort((a, b) => new Date(a.time) - new Date(b.time));
-
-            const labels = data.map(item => item.time);
-            const currentData = data.map(item => parseFloat(item.current) || 0);
-            const statusData = data.map(item => item.deviceStatus === "ON" ? 1 : 0);
+            const times = data.map(item => item.time);
+            const currents = data.map(item => item.current);
+            const deviceStatuses = data.map(item => item.deviceStatus === 'ON' ? 1 : 0);
 
             if (chart) {
                 chart.destroy();
             }
 
+            const ctx = document.getElementById('dataChart').getContext('2d');
             chart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: times,
                     datasets: [
                         {
-                            label: 'Current',
-                            data: currentData,
-                            borderColor: 'rgb(75, 192, 192)',
-                            tension: 0.1,
-                            yAxisID: 'y-axis-1'
+                            label: 'Current (A)',
+                            data: currents,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            yAxisID: 'y1',
                         },
                         {
                             label: 'Device Status',
-                            data: statusData,
-                            borderColor: 'rgb(255, 99, 132)',
-                            backgroundColor: 'rgb(255, 99, 132)',
-                            stepped: true,
-                            yAxisID: 'y-axis-2'
+                            data: deviceStatuses,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            yAxisID: 'y2',
                         }
                     ]
                 },
                 options: {
-                    responsive: true,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false,
-                    },
                     scales: {
                         x: {
-                            title: {
-                                display: true,
-                                text: 'Time'
+                            type: 'time',
+                            time: {
+                                unit: 'hour'
                             }
                         },
-                        'y-axis-1': {
+                        y1: {
                             type: 'linear',
-                            display: true,
                             position: 'left',
                             title: {
                                 display: true,
-                                text: 'Current'
+                                text: 'Current (A)'
                             }
                         },
-                        'y-axis-2': {
+                        y2: {
                             type: 'linear',
-                            display: true,
                             position: 'right',
-                            min: 0,
-                            max: 1,
                             ticks: {
                                 callback: function(value) {
-                                    return value == 1 ? 'ON' : 'OFF';
+                                    return value === 1 ? 'ON' : 'OFF';
                                 }
                             },
                             title: {
@@ -335,14 +385,13 @@
                                 text: 'Device Status'
                             },
                             grid: {
-                                drawOnChartArea: false,
-                            },
+                                drawOnChartArea: false
+                            }
                         }
                     }
                 }
             });
         }
-
     </script>
 </body>
 </html>
