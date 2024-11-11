@@ -129,7 +129,11 @@
     <div id="chart">
         <canvas id="dataChart"></canvas>
     </div>
-
+    <div id="powerConsumptionInfo" style="display: none;">
+        <h2>Power Consumption Details</h2>
+        <p><strong>Energy Consumption:</strong> <span id="energyConsumption">N/A</span> Wh</p>
+        <p><strong>Total On Time:</strong> <span id="totalOnTime">N/A</span> Sec</p>
+    </div>
     <h2>Device Data</h2>
     <table id="dataTable">
         <thead>
@@ -189,49 +193,57 @@
         }
 
         window.fetchData = async function() {
-            const selectedDate = document.getElementById('date').value;
+    const selectedDate = document.getElementById('date').value;
+    const [year, month, day] = selectedDate.split('-');
+    const formattedDate = `${day}-${month}-${year}`;
 
-            const [year, month, day] = selectedDate.split('-');
-            const formattedDate = `${day}-${month}-${year}`;
+    console.log(`Fetching data for userId: ${userId}, deviceId: ${deviceId}, date: ${formattedDate}`);
 
-            console.log(`Fetching data for userId: ${userId}, deviceId: ${deviceId}, date: ${formattedDate}`);
+    const dateRef = collection(db, "Data", userId, "Fan", deviceId, formattedDate);
+    const powerConsumptionRef = doc(db, "Data", userId, "Fan", deviceId, formattedDate, "powerconsumption");
 
-            const dateRef = collection(db, "Data", userId, "Fan", deviceId, formattedDate);
-            console.log(`Firestore path: Data/${userId}/Fan/${deviceId}/${formattedDate}`);
+    try {
+        const querySnapshot = await getDocs(dateRef);
+        const powerConsumptionDoc = await getDoc(powerConsumptionRef);
 
-            try {
-                const querySnapshot = await getDocs(dateRef);
-                console.log(`Query snapshot size: ${querySnapshot.size}`);
-
-                if (querySnapshot.empty) {
-                    console.log("No data available for the selected date");
-                    document.getElementById('dataBody').innerHTML = '<tr><td colspan="3">No data available for the selected date</td></tr>';
-                    if (chart) {
-                        chart.destroy();
-                        chart = null;
-                    }
-                    return;
-                }
-
-                const data = [];
-                querySnapshot.forEach((doc) => {
-                    console.log(`Document ID: ${doc.id}, Data:`, doc.data());
-                    data.push({ time: doc.id, ...doc.data() });
-                });
-
-                console.log(`Processed data:`, data);
-
-                updateTable(data);
-                updateChart(data);
-            } catch (error) {
-                console.error("Error fetching data: ", error);
-                document.getElementById('dataBody').innerHTML = `<tr><td colspan="3">Error fetching data: ${error.message}</td></tr>`;
-                if (chart) {
-                    chart.destroy();
-                    chart = null;
-                }
+        if (querySnapshot.empty) {
+            console.log("No data available for the selected date");
+            document.getElementById('dataBody').innerHTML = '<tr><td colspan="3">No data available for the selected date</td></tr>';
+            if (chart) {
+                chart.destroy();
+                chart = null;
             }
+        } else {
+            const data = [];
+            querySnapshot.forEach((doc) => {
+                data.push({ time: doc.id, ...doc.data() });
+            });
+
+            updateTable(data);
+            updateChart(data);
         }
+
+        // Display power consumption data if it exists
+        if (powerConsumptionDoc.exists()) {
+            const powerData = powerConsumptionDoc.data();
+            document.getElementById('energyConsumption').textContent = powerData.energyConsumption || 'N/A';
+            document.getElementById('totalOnTime').textContent = powerData.totalOnTime || 'N/A';
+            document.getElementById('powerConsumptionInfo').style.display = 'block';
+        } else {
+            console.log("No power consumption data available for the selected date");
+            document.getElementById('powerConsumptionInfo').style.display = 'none';
+        }
+
+    } catch (error) {
+        console.error("Error fetching data: ", error);
+        document.getElementById('dataBody').innerHTML = `<tr><td colspan="3">Error fetching data: ${error.message}</td></tr>`;
+        if (chart) {
+            chart.destroy();
+            chart = null;
+        }
+    }
+};
+
 
         function updateTable(data) {
             const tableBody = document.getElementById('dataBody');
