@@ -130,16 +130,10 @@
         }
 
         /* Date Selector Styling */
-        #dateSelector {
-            margin-bottom: 20px;
-            padding: 20px;
-            background-color: #ececec;
-            border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-
-        #dateSelector select, #dateSelector input[type="date"], 
-        #dateSelector input[type="month"], #dateSelector input[type="number"] {
+        #dateSelector select,
+        #dateSelector input[type="date"],
+        #dateSelector input[type="month"],
+        #dateSelector input[type="number"] {
             padding: 8px;
             font-size: 1rem;
             border: 1px solid #ccc;
@@ -148,19 +142,30 @@
         }
 
         /* Initially hide the month, year, and range inputs */
-        #monthInput, #yearInput, #rangeInputs {
+        #monthInput,
+        #yearInput,
+        #rangeInputs {
             display: none;
         }
-        
+
+        /* Monthly summary */
+        .monthly-summary {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .monthly-summary h3 {
+            color: #4A90E2;
+        }
     </style>
 </head>
 
 <body>
     <h1>Fan Device Details</h1>
-
     <div id="deviceInfo"></div>
-
-    <!-- Updated date selector -->
     <div id="dateSelector">
         <label for="viewType">View By:</label>
         <select id="viewType" onchange="toggleDateInputs()">
@@ -169,7 +174,6 @@
             <option value="year">Year</option>
             <option value="range">Range</option>
         </select>
-
         <input type="date" id="dateInput">
         <input type="month" id="monthInput">
         <input type="number" id="yearInput" placeholder="Select Year" min="2000" max="2100">
@@ -181,8 +185,6 @@
         </div>
         <button onclick="fetchData()">Fetch Data</button>
     </div>
-
-
     <div id="chart">
         <canvas id="dataChart"></canvas>
     </div>
@@ -202,10 +204,9 @@
         </thead>
         <tbody id="dataBody"></tbody>
     </table>
-
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-        import { getFirestore, doc, getDoc, collection, getDocs} from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDqLcufSIP87WT1aEyDI-dKVdTsSBACrEc",
@@ -220,6 +221,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
+
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('userId');
         const deviceId = urlParams.get('deviceId');
@@ -232,7 +234,8 @@
             toggleDateInputs();
         };
 
-        window.toggleDateInputs = function() {
+        // Modified toggleDateInputs function
+        window.toggleDateInputs = function () {
             const viewType = document.getElementById('viewType').value;
             const dateInput = document.getElementById('dateInput');
             const monthInput = document.getElementById('monthInput');
@@ -246,7 +249,7 @@
             rangeInputs.style.display = 'none';
 
             // Show specific input based on selected view type
-            switch(viewType) {
+            switch (viewType) {
                 case 'day':
                     dateInput.style.display = 'inline-block';
                     break;
@@ -260,8 +263,51 @@
                     rangeInputs.style.display = 'inline-block';
                     break;
             }
+
+            // Update table headers based on view type
+            updateTableHeaders(viewType);
+
+            // Clear any existing power consumption display
+            updatePowerConsumption(viewType, null);
         };
 
+
+        // Add this function to handle power consumption display
+        function updatePowerConsumption(viewType, data) {
+            // Remove any existing monthly summary
+            const existingSummary = document.querySelector('.monthly-summary');
+            if (existingSummary) {
+                existingSummary.remove();
+            }
+
+            const powerConsumptionInfo = document.getElementById('powerConsumptionInfo');
+
+            if (viewType === 'month' && data) {
+                // For monthly view, show summary at the top
+                const monthlyDiv = document.createElement('div');
+                monthlyDiv.className = 'monthly-summary';
+                monthlyDiv.innerHTML = `
+            <h3>Monthly Summary</h3>
+            <p><strong>Total Energy Consumption:</strong> ${data.energyConsumption || 'N/A'} Wh</p>
+            <p><strong>Total On Time:</strong> ${data.totalOnTime || 'N/A'} Sec</p>
+        `;
+
+                // Insert before the table
+                const table = document.querySelector('table');
+                table.parentNode.insertBefore(monthlyDiv, table);
+
+                // Hide the regular power consumption info
+                powerConsumptionInfo.style.display = 'none';
+            } else if (viewType === 'day' && data) {
+                // For daily view, show in the regular power consumption section
+                document.getElementById('energyConsumption').textContent = data.energyConsumption || 'N/A';
+                document.getElementById('totalOnTime').textContent = data.totalOnTime || 'N/A';
+                powerConsumptionInfo.style.display = 'block';
+            } else {
+                // Hide both if no data
+                powerConsumptionInfo.style.display = 'none';
+            }
+        }
 
         async function fetchDeviceInfo() {
             const deviceRef = doc(db, "Data", userId, "Fan", deviceId);
@@ -280,99 +326,208 @@
             }
         }
 
-        // Update fetchData function
-        window.fetchData = async function() {
-            const viewType = document.getElementById('viewType').value;
-            let dateStr;
+        // Add this function to handle dynamic table headers
+        function updateTableHeaders(viewType) {
+            const table = document.getElementById('dataTable');
+            let headerHTML = '';
 
-            switch(viewType) {
-                case 'day':
-                    const selectedDate = document.getElementById('dateInput').value;
-                    const [year, month, day] = selectedDate.split('-');
-                    dateStr = `${day}-${month}-${year}`;
-                    break;
+            switch (viewType) {
                 case 'month':
-                    const [myear, mmonth] = document.getElementById('monthInput').value.split('-');
-                    dateStr = `${mmonth}-${myear}`;
+                    headerHTML = `
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Energy Consumption (Wh)</th>
+                        <th>Total On Time (Sec)</th>
+                    </tr>
+                </thead>
+                <tbody id="dataBody"></tbody>
+            `;
                     break;
-                case 'year':
-                    dateStr = document.getElementById('yearInput').value;
-                    break;
-                case 'range':
-                    // For range, we'll use the start date initially
-                    const startDate = document.getElementById('startDate').value;
-                    const [syear, smonth, sday] = startDate.split('-');
-                    dateStr = `${sday}-${smonth}-${syear}`;
+                case 'day':
+                default:
+                    headerHTML = `
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Device Status</th>
+                        <th>Fan Speed</th>
+                    </tr>
+                </thead>
+                <tbody id="dataBody"></tbody>
+            `;
                     break;
             }
 
-            console.log(`Fetching data for date: ${dateStr}`);
+            table.innerHTML = headerHTML;
+        }
 
-            try {
-                // Fetch regular data
-                const dateRef = collection(db, "Data", userId, "Fan", deviceId, dateStr);
-                const querySnapshot = await getDocs(dateRef);
+        // Modified window.fetchData function
+        window.fetchData = async function () {
+            const viewType = document.getElementById('viewType').value;
 
-                // Fetch power consumption data
-                const powerConsumptionRef = doc(db, "Data", userId, "Fan", deviceId, dateStr, "powerconsumption");
-                const powerConsumptionDoc = await getDoc(powerConsumptionRef);
+            if (viewType === 'month') {
+                await fetchMonthlyData();
+            } else {
+                const dateStr = getDateString(viewType);
+                console.log(`Fetching data for date: ${dateStr}`);
 
-                if (querySnapshot.empty) {
-                    console.log("No data available for the selected date");
-                    document.getElementById('dataBody').innerHTML = '<tr><td colspan="3">No data available for the selected date</td></tr>';
+                try {
+                    // Fetch regular data
+                    const dateRef = collection(db, "Data", userId, "Fan", deviceId, dateStr);
+                    const querySnapshot = await getDocs(dateRef);
+
+                    // Fetch power consumption data
+                    const powerConsumptionRef = doc(db, "Data", userId, "Fan", deviceId, dateStr, "powerconsumption");
+                    const powerConsumptionDoc = await getDoc(powerConsumptionRef);
+
+                    if (querySnapshot.empty) {
+                        console.log("No data available for the selected date");
+                        document.getElementById('dataBody').innerHTML = '<tr><td colspan="3">No data available for the selected date</td></tr>';
+                        if (chart) {
+                            chart.destroy();
+                            chart = null;
+                        }
+                        updatePowerConsumption(viewType, null);
+                    } else {
+                        const data = [];
+                        querySnapshot.forEach((doc) => {
+                            data.push({
+                                time: doc.id,
+                                ...doc.data()
+                            });
+                        });
+
+                        // Update power consumption info
+                        if (powerConsumptionDoc.exists()) {
+                            updatePowerConsumption(viewType, powerConsumptionDoc.data());
+                        } else {
+                            updatePowerConsumption(viewType, null);
+                        }
+
+                        updateTable(data);
+                        updateChart(data);
+                    }
+                } catch (error) {
+                    console.error("Error fetching data: ", error);
+                    document.getElementById('dataBody').innerHTML = `<tr><td colspan="3">Error fetching data: ${error.message}</td></tr>`;
                     if (chart) {
                         chart.destroy();
                         chart = null;
                     }
-                    document.getElementById('powerConsumptionInfo').style.display = 'none';
-                } else {
-                    const data = [];
-                    querySnapshot.forEach((doc) => {
-                        data.push({ 
-                            time: doc.id,
-                            ...doc.data()
-                        });
-                    });
-
-                    // Update power consumption info if available
-                    if (powerConsumptionDoc.exists()) {
-                        const powerData = powerConsumptionDoc.data();
-                        document.getElementById('energyConsumption').textContent = powerData.energyConsumption || 'N/A';
-                        document.getElementById('totalOnTime').textContent = powerData.totalOnTime || 'N/A';
-                        document.getElementById('powerConsumptionInfo').style.display = 'block';
-                    } else {
-                        document.getElementById('powerConsumptionInfo').style.display = 'none';
-                    }
-
-                    updateTable(data);
-                    updateChart(data);
-                }
-            } catch (error) {
-                console.error("Error fetching data: ", error);
-                document.getElementById('dataBody').innerHTML = `<tr><td colspan="3">Error fetching data: ${error.message}</td></tr>`;
-                if (chart) {
-                    chart.destroy();
-                    chart = null;
+                    updatePowerConsumption(viewType, null);
                 }
             }
         };
 
-
-        function updateTable(data) {
-            const tableBody = document.getElementById('dataBody');
-            tableBody.innerHTML = '';
-            data.sort((a, b) => a.time.localeCompare(b.time)).forEach((item) => {
-                const row = tableBody.insertRow();
-                row.insertCell(0).textContent = item.time;
-                row.insertCell(1).textContent = item.deviceStatus || 'N/A';
-                row.insertCell(2).textContent = item.fanSpeed || '0';
-            });
+        // Helper function to get formatted date string
+        function getDateString(viewType) {
+            switch (viewType) {
+                case 'day':
+                    const selectedDate = document.getElementById('dateInput').value;
+                    const [year, month, day] = selectedDate.split('-');
+                    return `${day}-${month}-${year}`;
+                case 'month':
+                    const [myear, mmonth] = document.getElementById('monthInput').value.split('-');
+                    return `${mmonth}-${myear}`;
+                case 'year':
+                    return document.getElementById('yearInput').value;
+                case 'range':
+                    const startDate = document.getElementById('startDate').value;
+                    const [syear, smonth, sday] = startDate.split('-');
+                    return `${sday}-${smonth}-${syear}`;
+                default:
+                    return '';
+            }
         }
 
+
+        // Modified fetchMonthlyData function
+        async function fetchMonthlyData() {
+            const [year, month] = document.getElementById('monthInput').value.split('-');
+
+            try {
+                // Fetch the monthly total document
+                const monthlyTotalRef = doc(db, "Data", userId, "Fan", deviceId, "Logs", year, month, "totalOfThisMonth");
+                const monthlyTotalDoc = await getDoc(monthlyTotalRef);
+
+                // Fetch all dates in the month
+                const monthRef = collection(db, "Data", userId, "Fan", deviceId, "Logs", year, month);
+                const monthDocs = await getDocs(monthRef);
+
+                // Update power consumption display
+                if (monthlyTotalDoc.exists()) {
+                    const totalData = monthlyTotalDoc.data();
+                    updatePowerConsumption('month', totalData);
+                } else {
+                    updatePowerConsumption('month', null);
+                }
+
+                // Update table headers for monthly view
+                updateTableHeaders('month');
+
+                // Prepare table data
+                const tableData = [];
+                monthDocs.forEach(doc => {
+                    if (doc.id !== 'totalOfThisMonth') {
+                        const data = doc.data();
+                        tableData.push({
+                            date: doc.id,
+                            energyConsumption: data.energyConsumption || 'N/A',
+                            totalOnTime: data.totalOnTime || 'N/A'
+                        });
+                    }
+                });
+
+                // Update table content
+                const tableBody = document.getElementById('dataBody');
+                tableBody.innerHTML = tableData
+                    .sort((a, b) => a.date.localeCompare(b.date))
+                    .map(row => `
+                <tr>
+                    <td>${row.date}</td>
+                    <td>${row.energyConsumption}</td>
+                    <td>${row.totalOnTime}</td>
+                </tr>
+            `).join('');
+
+                // Clear the chart since we're showing monthly data
+                if (chart) {
+                    chart.destroy();
+                    chart = null;
+                }
+
+            } catch (error) {
+                console.error("Error fetching monthly data: ", error);
+                document.getElementById('dataBody').innerHTML = `
+            <tr><td colspan="3">Error fetching monthly data: ${error.message}</td></tr>
+        `;
+                updatePowerConsumption('month', null);
+            }
+        }
+
+
+        // Modify the updateTable function to use the new structure
+        function updateTable(data) {
+            const viewType = document.getElementById('viewType').value;
+            updateTableHeaders(viewType);
+
+            const tableBody = document.getElementById('dataBody');
+            tableBody.innerHTML = '';
+
+            if (viewType === 'day') {
+                data.sort((a, b) => a.time.localeCompare(b.time)).forEach((item) => {
+                    const row = tableBody.insertRow();
+                    row.insertCell(0).textContent = item.time;
+                    row.insertCell(1).textContent = item.deviceStatus || 'N/A';
+                    row.insertCell(2).textContent = item.fanSpeed || '0';
+                });
+            }
+        }
         // Update chart function with new time formatting
         function updateChart(data) {
             const ctx = document.getElementById('dataChart').getContext('2d');
-            
+
             // Sort data by time
             data.sort((a, b) => a.time.localeCompare(b.time));
 
@@ -435,7 +590,7 @@
                             min: 0,
                             max: 1,
                             ticks: {
-                                callback: function(value) {
+                                callback: function (value) {
                                     return value == 1 ? 'ON' : 'OFF';
                                 }
                             },
