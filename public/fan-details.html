@@ -367,78 +367,76 @@
             const year = document.getElementById('yearInput').value;
 
             try {
-                // Fetch all months in the selected year
-                const yearRef = collection(db, "Data", userId, "Fan", deviceId, "Logs", year);
-                const monthsSnapshot = await getDocs(yearRef);
+                // Get reference to the year document
+                const yearRef = doc(db, "Data", userId, "Fan", deviceId, "Logs", year);
+                const yearDoc = await getDoc(yearRef);
 
-                if (monthsSnapshot.empty) {
+                if (!yearDoc.exists()) {
                     document.getElementById('dataBody').innerHTML = '<tr><td colspan="3">No data available for the selected year</td></tr>';
                     return;
                 }
+
+                const yearData = yearDoc.data();
+                const monthlyData = [];
+
+                // Extract energyConsumption and totalOnTime from month data
+                Object.keys(yearData).forEach(key => {
+                    if (key !== 'yearTotal' && key !== "averageMonthlyEnergy" && key !== 'averageMonthlyEnergy' && key !== 'averageMonthlyOnTime' && key !== 'energyConsumption' && key !== 'lastUpdated' && key !== 'monthsProcessed' && key !== 'totalOnTime') {
+                        monthlyData.push({
+                            month: key,
+                            energyConsumption: yearData[key].energyConsumption || 0,
+                            totalOnTime: yearData[key].totalOnTime || 0
+                        });
+                    }
+                });
 
                 // Create yearly summary div
                 const yearlySummaryDiv = document.createElement('div');
                 yearlySummaryDiv.className = 'monthly-summary';
 
-                let totalYearlyConsumption = 0;
-                let totalYearlyOnTime = 0;
-                const monthlyData = [];
-
-                // Process each month's data
-                for (const monthDoc of monthsSnapshot.docs) {
-                    const monthName = monthDoc.id;
-                    if (monthName === 'totalOfThisYear') continue;
-
-                    // Fetch totalOfThisMonth document for each month
-                    const totalMonthRef = doc(db, "Data", userId, "Fan", deviceId, "Logs", year, monthName, "totalOfThisMonth");
-                    const totalMonthDoc = await getDoc(totalMonthRef);
-
-                    if (totalMonthDoc.exists()) {
-                        const monthData = totalMonthDoc.data();
-                        const energyConsumption = parseFloat(monthData.energyConsumption) || 0;
-                        const totalOnTime = parseFloat(monthData.totalOnTime) || 0;
-
-                        totalYearlyConsumption += energyConsumption;
-                        totalYearlyOnTime += totalOnTime;
-
-                        monthlyData.push({
-                            month: monthName,
-                            energyConsumption: energyConsumption.toFixed(2),
-                            totalOnTime: totalOnTime.toFixed(2)
-                        });
-                    }
-                }
+                // Get yearTotal data
+                const yearTotalData = yearData.yearTotal || {};
+                const totalYearlyConsumption = yearTotalData.energyConsumption || 0;
+                const totalYearlyOnTime = yearTotalData.totalOnTime || 0;
 
                 // Update yearly summary
                 yearlySummaryDiv.innerHTML = `
-                <h3>Yearly Summary - ${year}</h3>
-                <p><strong>Total Energy Consumption:</strong> ${totalYearlyConsumption.toFixed(2)} Wh</p>
-                <p><strong>Total On Time:</strong> ${totalYearlyOnTime.toFixed(2)} Sec</p>
-            `;
+      <h3>Yearly Summary - ${year}</h3>
+      <p><strong>Total Energy Consumption:</strong> ${totalYearlyConsumption.toFixed(2)} Wh</p>
+      <p><strong>Total On Time:</strong> ${totalYearlyOnTime.toFixed(2)} Sec</p>
+    `;
 
                 // Update table headers
                 const table = document.getElementById('dataTable');
                 table.innerHTML = `
-                <thead>
-                    <tr>
-                        <th>Month</th>
-                        <th>Energy Consumption (Wh)</th>
-                        <th>Total On Time (Sec)</th>
-                    </tr>
-                </thead>
-                <tbody id="dataBody"></tbody>
-            `;
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th>Energy Consumption (Wh)</th>
+          <th>Total On Time (Sec)</th>
+        </tr>
+      </thead>
+      <tbody id="dataBody"></tbody>
+    `;
 
                 // Sort months and update table
-                const sortedMonthlyData = monthlyData.sort((a, b) => a.month.localeCompare(b.month));
+                const sortedMonthlyData = monthlyData.sort((a, b) => {
+                    const monthOrder = {
+                        'January': 1, 'February': 2, 'March': 3, 'April': 4,
+                        'May': 5, 'June': 6, 'July': 7, 'August': 8,
+                        'September': 9, 'October': 10, 'November': 11, 'December': 12
+                    };
+                    return monthOrder[a.month] - monthOrder[b.month];
+                });
+
                 const tableBody = document.getElementById('dataBody');
                 tableBody.innerHTML = sortedMonthlyData.map(data => `
-                <tr>
-                    <td>${data.month}</td>
-                    <td>${data.energyConsumption}</td>
-                    <td>${data.totalOnTime}</td>
-                </tr>
-            `).join('');
+      <tr>
+        <td>${data.month}</td>
+        <td>${parseFloat(data.energyConsumption).toFixed(2)}</td>
+        <td>${parseFloat(data.totalOnTime).toFixed(2)}</td>
+      </tr>
+    `).join('');
 
                 // Insert yearly summary before table
                 const existingSummary = document.querySelector('.monthly-summary');
@@ -447,91 +445,111 @@
                 }
                 table.parentNode.insertBefore(yearlySummaryDiv, table);
 
-                // Clear any existing chart
-                if (chart) {
-                    chart.destroy();
-                    chart = null;
-                }
-
+                // Update chart with yearly data
+                updateYearlyChart(sortedMonthlyData);
             } catch (error) {
                 console.error("Error fetching yearly data: ", error);
                 document.getElementById('dataBody').innerHTML = `
-                <tr><td colspan="3">Error fetching yearly data: ${error.message}</td></tr>
-            `;
+      <tr><td colspan="3">Error fetching yearly data: ${error.message}</td></tr>
+    `;
             }
         }
 
+        function updateYearlyChart(data) {
+            const ctx = document.getElementById('dataChart').getContext('2d');
+
+            const labels = data.map(item => item.month);
+            const energyData = data.map(item => item.energyConsumption);
+            const onTimeData = data.map(item => item.totalOnTime);
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Energy Consumption (Wh)',
+                            data: energyData,
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            yAxisID: 'y-axis-1',
+                            order: 1
+                        },
+                        {
+                            label: 'Total On Time (Sec)',
+                            data: onTimeData,
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            yAxisID: 'y-axis-2',
+                            type: 'line',
+                            order: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Month'
+                            }
+                        },
+                        'y-axis-1': {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Energy Consumption (Wh)'
+                            },
+                            grid: {
+                                drawOnChartArea: true
+                            }
+                        },
+                        'y-axis-2': {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Total On Time (Sec)'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Yearly Energy Consumption and Usage Time'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    }
+                }
+            });
+        }
 
         // Modify the fetchData function to include year option
         window.fetchData = async function () {
             const viewType = document.getElementById('viewType').value;
 
-            switch (viewType) {
-                case 'month':
-                    await fetchMonthlyData();
-                    break;
-                case 'year':
-                    await fetchYearlyData();
-                    break;
-                default:
-                    const dateStr = getDateString(viewType);
-                    console.log(`Fetching data for date: ${dateStr}`);
-
-                    try {
-                        // Fetch regular data
-                        const dateRef = collection(db, "Data", userId, "Fan", deviceId, dateStr);
-                        const querySnapshot = await getDocs(dateRef);
-
-                        // Fetch power consumption data
-                        const powerConsumptionRef = doc(db, "Data", userId, "Fan", deviceId, dateStr, "powerconsumption");
-                        const powerConsumptionDoc = await getDoc(powerConsumptionRef);
-
-                        if (querySnapshot.empty) {
-                            console.log("No data available for the selected date");
-                            document.getElementById('dataBody').innerHTML = '<tr><td colspan="3">No data available for the selected date</td></tr>';
-                            if (chart) {
-                                chart.destroy();
-                                chart = null;
-                            }
-                            updatePowerConsumption(viewType, null);
-                        } else {
-                            const data = [];
-                            querySnapshot.forEach((doc) => {
-                                data.push({
-                                    time: doc.id,
-                                    ...doc.data()
-                                });
-                            });
-
-                            // Update power consumption info
-                            if (powerConsumptionDoc.exists()) {
-                                updatePowerConsumption(viewType, powerConsumptionDoc.data());
-                            } else {
-                                updatePowerConsumption(viewType, null);
-                            }
-
-                            updateTable(data);
-                            updateChart(data);
-                        }
-                    } catch (error) {
-                        console.error("Error fetching data: ", error);
-                        document.getElementById('dataBody').innerHTML = `<tr><td colspan="3">Error fetching data: ${error.message}</td></tr>`;
-                        if (chart) {
-                            chart.destroy();
-                            chart = null;
-                        }
-                        updatePowerConsumption(viewType, null);
-                    }
-            }
-        };
-
-
-        // Modified window.fetchData function
-        window.fetchData = async function () {
-            const viewType = document.getElementById('viewType').value;
-
             if (viewType === 'month') {
                 await fetchMonthlyData();
+            } else if (viewType === 'year') {
+                await fetchYearlyData();
             } else {
                 const dateStr = getDateString(viewType);
                 console.log(`Fetching data for date: ${dateStr}`);
