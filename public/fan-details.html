@@ -362,6 +362,175 @@
             table.innerHTML = headerHTML;
         }
 
+        // Add this new function to fetch range data
+        async function fetchRangeData() {
+            const startDate = new Date(document.getElementById('startDate').value);
+            const endDate = new Date(document.getElementById('endDate').value);
+
+            try {
+                const rangeData = [];
+                let totalEnergyConsumption = 0;
+                let totalOnTime = 0;
+
+                // Loop through each date in the range
+                for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+                    const dateStr = `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
+
+                    // Get power consumption document for each date
+                    const powerConsumptionRef = doc(db, "Data", userId, "Fan", deviceId, dateStr, "powerconsumption");
+                    const powerConsumptionDoc = await getDoc(powerConsumptionRef);
+
+                    if (powerConsumptionDoc.exists()) {
+                        const data = powerConsumptionDoc.data();
+                        rangeData.push({
+                            date: dateStr,
+                            energyConsumption: parseFloat(data.energyConsumption) || 0,
+                            totalOnTime: parseFloat(data.totalOnTime) || 0
+                        });
+
+                        totalEnergyConsumption += parseFloat(data.energyConsumption) || 0;
+                        totalOnTime += parseFloat(data.totalOnTime) || 0;
+                    }
+                }
+
+                // Create range summary div
+                const rangeSummaryDiv = document.createElement('div');
+                rangeSummaryDiv.className = 'monthly-summary';
+                rangeSummaryDiv.innerHTML = `
+            <h3>Range Summary (${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()})</h3>
+            <p><strong>Total Energy Consumption:</strong> ${totalEnergyConsumption.toFixed(2)} Wh</p>
+            <p><strong>Total On Time:</strong> ${totalOnTime.toFixed(2)} Sec</p>
+        `;
+
+                // Update table headers for range view
+                const table = document.getElementById('dataTable');
+                table.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Energy Consumption (Wh)</th>
+                    <th>Total On Time (Sec)</th>
+                </tr>
+            </thead>
+            <tbody id="dataBody"></tbody>
+        `;
+
+                // Update table with range data
+                const tableBody = document.getElementById('dataBody');
+                tableBody.innerHTML = rangeData.map(row => `
+            <tr>
+                <td>${row.date}</td>
+                <td>${row.energyConsumption.toFixed(2)}</td>
+                <td>${row.totalOnTime.toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+                // Insert range summary before table
+                const existingSummary = document.querySelector('.monthly-summary');
+                if (existingSummary) {
+                    existingSummary.remove();
+                }
+                table.parentNode.insertBefore(rangeSummaryDiv, table);
+
+                // Update chart with range data
+                updateRangeChart(rangeData);
+
+            } catch (error) {
+                console.error("Error fetching range data: ", error);
+                document.getElementById('dataBody').innerHTML = `
+            <tr><td colspan="3">Error fetching range data: ${error.message}</td></tr>
+        `;
+            }
+        }
+
+
+        // Add function to update chart with range data
+        function updateRangeChart(data) {
+            const ctx = document.getElementById('dataChart').getContext('2d');
+
+            const labels = data.map(item => item.date);
+            const energyData = data.map(item => item.energyConsumption);
+            const onTimeData = data.map(item => item.totalOnTime);
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Energy Consumption (Wh)',
+                            data: energyData,
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            yAxisID: 'y-axis-1',
+                            fill: true
+                        },
+                        {
+                            label: 'Total On Time (Sec)',
+                            data: onTimeData,
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            yAxisID: 'y-axis-2',
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        },
+                        'y-axis-1': {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Energy Consumption (Wh)'
+                            },
+                            grid: {
+                                drawOnChartArea: true
+                            }
+                        },
+                        'y-axis-2': {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Total On Time (Sec)'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Range Energy Consumption and Usage Time'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    }
+                }
+            });
+        }
+
         // Add this new function to fetch yearly data
         async function fetchYearlyData() {
             const year = document.getElementById('yearInput').value;
@@ -542,7 +711,7 @@
             });
         }
 
-        // Modify the fetchData function to include year option
+        // Modify the fetchData function to include range option
         window.fetchData = async function () {
             const viewType = document.getElementById('viewType').value;
 
@@ -550,7 +719,10 @@
                 await fetchMonthlyData();
             } else if (viewType === 'year') {
                 await fetchYearlyData();
+            } else if (viewType === 'range') {
+                await fetchRangeData();
             } else {
+                // Existing day view code remains the same
                 const dateStr = getDateString(viewType);
                 console.log(`Fetching data for date: ${dateStr}`);
 
@@ -601,6 +773,67 @@
                 }
             }
         };
+
+
+        // // Modify the fetchData function to include year option
+        // window.fetchData = async function () {
+        //     const viewType = document.getElementById('viewType').value;
+
+        //     if (viewType === 'month') {
+        //         await fetchMonthlyData();
+        //     } else if (viewType === 'year') {
+        //         await fetchYearlyData();
+        //     } else {
+        //         const dateStr = getDateString(viewType);
+        //         console.log(`Fetching data for date: ${dateStr}`);
+
+        //         try {
+        //             // Fetch regular data
+        //             const dateRef = collection(db, "Data", userId, "Fan", deviceId, dateStr);
+        //             const querySnapshot = await getDocs(dateRef);
+
+        //             // Fetch power consumption data
+        //             const powerConsumptionRef = doc(db, "Data", userId, "Fan", deviceId, dateStr, "powerconsumption");
+        //             const powerConsumptionDoc = await getDoc(powerConsumptionRef);
+
+        //             if (querySnapshot.empty) {
+        //                 console.log("No data available for the selected date");
+        //                 document.getElementById('dataBody').innerHTML = '<tr><td colspan="3">No data available for the selected date</td></tr>';
+        //                 if (chart) {
+        //                     chart.destroy();
+        //                     chart = null;
+        //                 }
+        //                 updatePowerConsumption(viewType, null);
+        //             } else {
+        //                 const data = [];
+        //                 querySnapshot.forEach((doc) => {
+        //                     data.push({
+        //                         time: doc.id,
+        //                         ...doc.data()
+        //                     });
+        //                 });
+
+        //                 // Update power consumption info
+        //                 if (powerConsumptionDoc.exists()) {
+        //                     updatePowerConsumption(viewType, powerConsumptionDoc.data());
+        //                 } else {
+        //                     updatePowerConsumption(viewType, null);
+        //                 }
+
+        //                 updateTable(data);
+        //                 updateChart(data);
+        //             }
+        //         } catch (error) {
+        //             console.error("Error fetching data: ", error);
+        //             document.getElementById('dataBody').innerHTML = `<tr><td colspan="3">Error fetching data: ${error.message}</td></tr>`;
+        //             if (chart) {
+        //                 chart.destroy();
+        //                 chart = null;
+        //             }
+        //             updatePowerConsumption(viewType, null);
+        //         }
+        //     }
+        // };
 
         // Helper function to get formatted date string
         function getDateString(viewType) {
