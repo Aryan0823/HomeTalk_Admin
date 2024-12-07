@@ -91,15 +91,6 @@
     <div id="userDetails" class="user-info">
         <!-- User details will be populated here -->
     </div>
-    <h2>User Data Subcollections</h2>
-    <div id="userData" class="user-data">
-        <div id="subcollectionGrid" class="subcollection-grid">
-            <!-- Subcollection cards will be populated here -->
-        </div>
-        <div id="subcollectionContent">
-            <!-- Selected subcollection content will be displayed here -->
-        </div>
-    </div>
     <div class="device-cards">
         <div class="device-card" id="ac-card">
           <i class="fas fa-snowflake"></i>
@@ -156,7 +147,6 @@
                     <p><strong>Name:</strong> ${userData.firstname} ${userData.lastname}</p>
                     <p><strong>Email:</strong> ${userData.email}</p>
                     <p><strong>Mobile Number:</strong> ${userData.mobilenumber}</p>
-                    <p><strong>Created At:</strong> ${userData.createdAt ? new Date(userData.createdAt.toDate()).toLocaleString() : 'N/A'}</p>
                 `;
                 document.getElementById("userDetails").innerHTML = userDetailsHtml;
                 
